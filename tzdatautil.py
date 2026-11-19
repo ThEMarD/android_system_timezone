@@ -34,6 +34,25 @@ def GetIanaTarFile(dir_name, file_prefix):
 
 
 def InvokeSoong(android_build_top, build_modules):
+  """Makes sure the specified host modules have been built.
+
+  If ANDROID_TZ_HOST_TOOLS is set, it is taken to be a directory holding the
+  host binaries (normally ${ANDROID_HOST_OUT}/bin) and Soong is not invoked at
+  all. This lets the update scripts run on hosts where soong_ui cannot be
+  configured, and it is also the only way to short-circuit the check in the
+  subprocesses these scripts start (create-tz_version.py, create-test-data.sh),
+  which do not inherit an in-process shim from the caller.
+  """
+  prebuilt_dir = os.environ.get('ANDROID_TZ_HOST_TOOLS')
+  if prebuilt_dir:
+    missing = [module for module in build_modules
+               if not os.path.isfile(os.path.join(prebuilt_dir, module))]
+    if missing:
+      print('ERROR: %s does not contain: %s' % (prebuilt_dir, ', '.join(missing)))
+      sys.exit(1)
+    print('Using prebuilt host tools from %s, skipping Soong' % prebuilt_dir)
+    return
+
   old_cwd = os.getcwd()
   os.chdir(android_build_top)
   subprocess.check_call(['build/soong/soong_ui.bash', '--make-mode', '-j30'] + build_modules)
