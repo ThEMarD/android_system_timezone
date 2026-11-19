@@ -28,7 +28,9 @@ import tempfile
 sys.path.append('%s/external/icu/tools' % os.environ.get('ANDROID_BUILD_TOP'))
 import i18nutil
 import icuutil
+import patches
 import tzdatautil
+import ziputil
 
 # Unix epoch timestamp in seconds up to which transitions in tzdata will be pregenerated.
 pregeneration_upper_bound = 4102444800 # 1 Jan 2100
@@ -105,6 +107,30 @@ def WriteSetupFile(zic_input_file):
   return zone_compactor_setup_file
 
 
+def UpdateIcu4jTzDataJar(zoneinfo64_res_file):
+  """Refreshes zoneinfo64.res in ICU4J's checked-in icutzdata.jar.
+
+  ICU4J ships prebuilt data jars for host tools (see
+  external/icu/icu4c/source/data/icu4j-readme.txt) and the Android build does
+  not regenerate them, so the time zone resource has to be replaced in place.
+  Only the entry that this script generates is touched: the CLDR-derived
+  resources next to it do not depend on the tzdata release.
+  """
+  jar_file = '%s/main/shared/data/icutzdata.jar' % icuutil.icu4jDir()
+  entry_name = 'com/ibm/icu/impl/data/icudata/zoneinfo64.res'
+
+  print('Updating %s in %s...' % (entry_name, jar_file))
+  entries = ziputil.ReadZipEntries(jar_file)
+  if entry_name not in entries:
+    sys.exit('%s does not contain %s' % (jar_file, entry_name))
+
+  with open(zoneinfo64_res_file, 'rb') as res_file:
+    entries[entry_name] = (res_file.read(), entries[entry_name][1])
+  # Rewritten in the same canonical form as the jars copied from the ICU build,
+  # so a rerun that generates the same data produces the same file.
+  ziputil.WriteZipCanonical(jar_file, entries)
+
+
 def BuildIcuData(iana_data_tar_file):
   icu_build_dir = '%s/icu' % tmp_dir
 
@@ -124,6 +150,9 @@ def BuildIcuData(iana_data_tar_file):
 
   # Copy ICU license file(s)
   icuutil.CopyLicenseFiles(icu_overlay_dir)
+
+  # Keep the host-side ICU4J copy of the same data in sync.
+  UpdateIcu4jTzDataJar('%s/zoneinfo64.res' % icu_overlay_dir)
 
 
 def GetIanaVersion(iana_tar_file):
@@ -251,8 +280,7 @@ def main():
   print('Intermediate / working dir: %s' % tmp_dir)
   print('Output data file structure: %s' % timezone_output_data_dir)
 
-  iana_input_data_dir = '%s/iana' % timezone_input_data_dir
-  iana_data_tar_file = tzdatautil.GetIanaTarFile(iana_input_data_dir, 'tzdata')
+  iana_data_tar_file = patches.Apply()
   iana_data_version = GetIanaVersion(iana_data_tar_file)
   print('IANA time zone data release %s in %s ...' % (iana_data_version, iana_data_tar_file))
 
