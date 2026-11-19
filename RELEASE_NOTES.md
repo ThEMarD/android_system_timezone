@@ -1,3 +1,18 @@
+### 2026f
+
+Alberta (America/Edmonton, Canada/Mountain) stopped changing its clocks on
+2026-03-08 and stays on permanent -06 from 2026-06-18. Manitoba
+(America/Winnipeg, Canada/Central), British Columbia (America/Vancouver,
+Canada/Pacific) and the Northwest Territories (America/Inuvik) made
+equivalent moves; Cuba also stays on -04 through 2027-11-07.
+
+Android models these permanent DST regions using the "Mountain Daylight Time"
+style names users expect, in line with CLDR, instead of the upstream
+"temporary hack" that switches to standard time abbreviations. This is done
+with the patches in `input_data/iana/patches/`, applied by `patches.py` before
+`update-tzdata.py` runs. A distant future transition in 2100 works around a
+`java.util.TimeZone` limitation when the last transition is in the past.
+
 ### 2022a rev. 2
 
 TZDB 2022b introduces `Europe/Kyiv` and merges more time zones which were
